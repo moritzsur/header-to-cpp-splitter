@@ -3,6 +3,9 @@
 
 
 
+from email.header import Header
+
+
 def remove_sections(string, startChars, endChars, endCharsToLeave = 0):
 
     while string.find(startChars) > -1:
@@ -71,12 +74,13 @@ def process_raw_lines(hLines, cppLines):
     # needs fix
     # docString = remove_string_content(docString)
 
-    # optimize file for analysis: replace tabs and newlines with space, remove multiple spaces in a row
+    # optimizing file for analysis: replace tabs and newlines with space, remove multiple spaces in a row
     docString = replace_special_chars(docString)
     docString = remove_multi_spaces(docString)
 
-    #docString = process_formatted(docString)
-    scopes = scopes_from_string(docString)
+    mainScope = HeaderScope("", docString, list())
+    hString = mainScope.get_h_string()
+    cppString = mainScope.get_cpp_string()
     
     return ["", docString]
 
@@ -96,6 +100,9 @@ class StrSection:
 
         self.content = inputString[self.__startIndex:self.__endIndex + 1]
 
+    def get_position(self):
+        return self.__startIndex, self.__endIndex
+
     def exists(self):
         return self.__startIndex + self.__endIndex > -1
 
@@ -111,45 +118,85 @@ class StrSection:
     def input_without_section(self):
         return self.remove_from_str(self.content)
 
-class Scope:
-    def __init__(self, content, name = ""):
-        self.content = content
-        self.__set_name()
-        self.__build_childs()
+    def get_content(self):
+        return self.__content
 
-    def __set_name():
-        pass #TODO
+# uses composite pattern to 
+class HeaderScope:
+
+    #prefix is the text before the scope starts. Could contain struct, enum, method declaration etc.
+    def __init__(self, prefix, content, surroundingScopes):
+        self.TYPE_STR_METHOD = "METHOD"
+        self.TYPE_STR_SKT_CLS_NAM = "STRUCT_CLASS_NAMESPACE"
+
+        assert isinstance(surroundingScopes, list)
+        self.__set_content(content)
+        self.__set_properties(surroundingScopes, prefix)
+
+        self.childs = []
+        if self.type == self.TYPE_STR_SKT_CLS_NAM:
+            self.__build_childs()
+
+    def __set_content(self, content):
+        if(content[0] == "{"):
+            content = content[1:]
+            lastChar = content[:len(content) - 1]
+            assert lastChar == "}"
+            content = content[0:lastChar]
+        self.content = content
+
+    def __set_properties(self, surScopes, prefix):
+        self.type = self.scope_name_from_prefix(prefix)
+        self.scopes = surScopes + self.scope_name_from_prefix(prefix)
 
     def __build_childs(self):
-        self.childs = []
         if self.content == "":
             return
 
         while True:
-            section = StrSection(self.content, "{", "}")
-            if not section.exists():
+            childContent = StrSection(self.content, "{", "}")
+            if not childContent.exists():
                 return
             
-            self.childs.append(Scope(section.content))
-            self.content = section.input_without_section()
+            prefix = self.__get_child_prefix(childContent.get_position()[0])
+
+            self.childs.append(HeaderScope(childContent.get_content()))
+            self.content = childContent.input_without_section()
+
+    def scope_name_from_prefix(self, prefix):
+        type = HeaderScope.scope_type_from_prefix(prefix)
+        if type == self.TYPE_STR_METHOD:
+            return ""
+
+    def scope_type_from_prefix(self, prefix):
+        #if the prefix content is a method declaration, return "_method", else return the name
+        return self.TYPE_STR_METHOD
+        pass
+
+    def __get_child_prefix(self, childStartIndex):
+        tStr = self.content[0:childStartIndex]
+        sIndex = max([tStr.find("}"), tStr.find(";")])
+        assert sIndex > -1
+        assert sIndex < childStartIndex
+        prefix = self.content[sIndex:childStartIndex]
+        print(prefix)
+        return prefix
+
+    def get_cpp_string(self):
+        cppString = ""
+        for child in self.childs:
+            cppString += child.get_cpp_string()
 
         
 
-def scopes_from_string(string):
+    def get_h_string():
+        pass
 
-    charIndex = 0
-    while charIndex < len(string):
-        char = string(charIndex)
-        
-        
-
-        charIndex += 1
-
-def get_scope_name(string):
-    tempWords = string.rsplit(" ", 2)
-    if len(tempWords) > 1:
-        secLW = tempWords[1]
-        if secLW == "struct" or secLW == "namespace" or secLW == "class":
-            return tempWords[0]
-    
-    return ""
+#def get_scope_name(string):
+#    tempWords = string.rsplit(" ", 2)
+#    if len(tempWords) > 1:
+#        secLW = tempWords[1]
+#        if secLW == "struct" or secLW == "namespace" or secLW == "class":
+#            return tempWords[0]
+#    
+#    return ""
