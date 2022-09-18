@@ -1,0 +1,1 @@
+ class nice { String test = "this is a test string that shouldnt be here afterwards" } struct FFFresh { int n = 0; } String str = "teststring3" void doStuff() {}
