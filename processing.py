@@ -231,7 +231,14 @@ class HeaderScope:
             child = HeaderScope(childPrefixStr, childStr)
             if child.is_leaf:
                 # tests for validating that a leaf should be added to composite structure
-                if childEnd + 1 < len(scopeWithChild) and scopeWithChild[childEnd + 1] == ";": # is enum or variable definition
+                
+                #ignore scopes that contain only one line
+                print(childStr)
+                if childStr.count(";") < 2:
+                    continue
+
+                #ignore scopes that are leafs and end with ";" - enums or variables
+                if childEnd + 1 < len(scopeWithChild) and scopeWithChild[childEnd + 1] == ";":
                     continue
             
             self.childs.append(child)
