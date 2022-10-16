@@ -225,12 +225,13 @@ class HeaderScope:
             childPrefixStr = self.get_child_prefix(scopeContent, childStart)
             fullStr = childPrefixStr + childStr
 
+            scopeWithChild = scopeContent
             scopeContent = scopeContent.replace(fullStr, "", 1) 
             
             child = HeaderScope(childPrefixStr, childStr)
             if child.is_leaf:
                 # tests for validating that a leaf should be added to composite structure
-                if childEnd + 1 < len(scopeContent) and scopeContent[childEnd + 1] == ";": # is enum or variable definition
+                if childEnd + 1 < len(scopeWithChild) and scopeWithChild[childEnd + 1] == ";": # is enum or variable definition
                     continue
             
             self.childs.append(child)
@@ -289,12 +290,3 @@ class HeaderScope:
 
     def get_h_string() -> str:
         return ""
-
-#def get_scope_name(string):
-#    tempWords = string.rsplit(" ", 2)
-#    if len(tempWords) > 1:
-#        secLW = tempWords[1]
-#        if secLW == "struct" or secLW == "namespace" or secLW == "class":
-#            return tempWords[0]
-#    
-#    return ""
