@@ -1,7 +1,21 @@
-from io import TextIOWrapper
-from pathlib import Path
+import os
 import shutil
 import processing
+from io import TextIOWrapper
+from pathlib import Path
+
+def setup_testing():
+    copyPath = Path("D:/Programming/Python_Projects/header-to-cpp-splitter/files/testfiles")
+    assert(copyPath.exists())
+    
+    dir = copyPath.parent / "test"
+    if not dir.exists():
+        os.mkdir(dir)
+    for path in dir.glob("*.*"):
+        os.remove(path)
+
+    for path in copyPath.glob("*.h"):
+        shutil.copy(path, dir / path.name, follow_symlinks=True)
 
 def save_old_header(path):
     pass

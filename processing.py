@@ -1,11 +1,6 @@
 
 # this is all about processing, no file stuff
 
-
-
-from email.header import Header
-
-
 def remove_sections(string, startChars, endChars, endCharsToLeave = 0):
 
     while string.find(startChars) > -1:
@@ -39,12 +34,22 @@ def remove_section_content(string, startChars, endChars):
 
 def remove_comments(string):
     string = remove_sections(string, "//", "\n", 1)
-    string = remove_sections(string, "/*", "*/\n")
+    string = remove_sections(string, "/*", "*/")
     string = remove_sections(string, "/*", "*/")
     return string
 
-def remove_preprocessor_defs(string):
-    string = remove_sections(string, "#", "\n")
+def remove_preprocessor_defs(string : str) -> str:
+    lines = string.splitlines(True)
+    string = ""
+
+    for i, line in enumerate(lines):
+        if line.startswith("#"):
+            lines.pop(i)
+
+    for line in lines:
+        string += line
+
+    # string = remove_sections(string, "#", "\n")
     return string
 
 def remove_string_content(string):
@@ -69,49 +74,68 @@ def process_raw_lines(hLines, cppLines):
     for line in hLines:
         docString = docString + line
 
+    numCurlyOpen = docString.count("{")
+    numCurlyClose = docString.count("}")
+    assert numCurlyOpen == numCurlyOpen
+
     docString = remove_comments(docString)
+    numCurlyOpen = docString.count("{")
+    numCurlyClose = docString.count("}")
     docString = remove_preprocessor_defs(docString)
+    numCurlyOpen = docString.count("{")
+    numCurlyClose = docString.count("}")
+    
     # needs fix
     # docString = remove_string_content(docString)
 
     # optimizing file for analysis: replace tabs and newlines with space, remove multiple spaces in a row
     docString = replace_special_chars(docString)
+    numCurlyOpen = docString.count("{")
+    numCurlyClose = docString.count("}")
     docString = remove_multi_spaces(docString)
+    numCurlyOpen = docString.count("{")
+    numCurlyClose = docString.count("}")
 
-    mainScope = HeaderScope("", docString, list())
-    hString = mainScope.get_h_string()
-    cppString = mainScope.get_cpp_string()
-    
-    return ["", docString]
+    assert docString.count("{") == numCurlyOpen
+    assert docString.count("}") == numCurlyClose
+    mainScope = HeaderScope("", docString)
+
+    print(mainScope.get_structure_str())
+    quit()
+
+    # hString = mainScope.get_h_string()
+    return ["", ""] #todo
 
 class StrSection:
+    #looks for first occurence of startChars and first occurence of endChars in [startCharIndex:]
     def __init__(self, inputString, startChars, endChars):
-        self.__startChars = startChars
-        self.__endChars = endChars
+        self.startChars = startChars
+        self.endChars = endChars
         self.__content = ""
-        self.__startIndex = inputString.find(startChars) 
-        tString = inputString[self.__startIndex:]
-        self.__endIndex = tString.find(endChars)
-        if self.__endIndex > -1:
-            self.__endIndex += self.__startIndex
+        self.startIndex = inputString.find(startChars) 
+        self.endIndex = -1
+        
+        if self.startIndex > -1:
+            tString = inputString[self.startIndex:]
+            self.endIndex = tString.find(endChars)
+            if self.endIndex > -1:
+                self.endIndex += self.startIndex
 
         if not self.exists():
+            self.content = ""
             return
 
-        self.content = inputString[self.__startIndex:self.__endIndex + 1]
-
-    def get_position(self):
-        return self.__startIndex, self.__endIndex
+        self.content = inputString[self.startIndex:self.endIndex + 1]
 
     def exists(self):
-        return self.__startIndex + self.__endIndex > -1
+        return self.startIndex > -1 and self.endIndex > -1
 
     def remove_from_str(self, string):
-        other = StrSection(string, self.__startChars, self.__endChars)
+        other = StrSection(string, self.startChars, self.endChars)
         if not other.exists():
             return string
 
-        string = string[0:other.__startIndex] + string[other.__endIndex + 1:]
+        string = string[0:other.startIndex] + string[other.endIndex + 1:]
 
         return string
 
@@ -125,61 +149,117 @@ class StrSection:
 class HeaderScope:
 
     #prefix is the text before the scope starts. Could contain struct, enum, method declaration etc.
-    def __init__(self, prefix, content, surroundingScopes):
-        self.TYPE_STR_METHOD = "METHOD"
-        self.TYPE_STR_SKT_CLS_NAM = "STRUCT_CLASS_NAMESPACE"
+    def __init__(self, prefix: str, content: str):
+        content      = self.remove_surrounding_curlys(content)
+        self.is_leaf = self.__is_leaf_from_prefix(prefix) #is true when this scope should have no child scopes
+        self.name    = self.__name_from_prefix(prefix) #the names that will be added to create the method in the cpp file - name1::name2::name3 { doStuff; }
+        # print(f"scopename: {self.name}")
+        
+        self.__build_childs(content)
 
-        assert isinstance(surroundingScopes, list)
-        self.__set_content(content)
-        self.__set_properties(surroundingScopes, prefix)
+    def remove_surrounding_curlys(self, strToUpdate: str) -> str:
+        if(len(strToUpdate) < 1):
+            return ""
+        if(strToUpdate[0] == "{"):
+            assert strToUpdate[-1] == "}"
+            return strToUpdate[1:-1]
 
+        return strToUpdate
+
+    def get_structure_str(self) -> str:
+        output = "\n" + self.name
+        for child in self.childs:
+            chStr = child.get_structure_str()
+            chLines = chStr.splitlines(True)
+            chStr = ""
+
+            for line in chLines:
+                line = "   " + line
+                chStr += line
+
+            output += chStr
+        
+        return output
+
+    def __is_leaf_from_prefix(self, prefix: str) -> bool:
+        if(prefix == ""):
+            return False
+        if(prefix.find("class ") > -1):
+            return False
+        if(prefix.find("struct ") > -1):
+            return False
+        if(prefix.find("namespace ") > -1):
+            return False
+        return True
+
+    def __name_from_prefix(self, scopePrefix: str) -> str:
+        if self.__is_leaf_from_prefix(scopePrefix):
+            return scopePrefix
+        
+        #if this is a class struct or namespace, this should return the corresponding name
+        sIndex = scopePrefix.find("class ")
+        if sIndex < 0:
+            sIndex = scopePrefix.find("struct ")
+        if sIndex < 0:
+            sIndex = scopePrefix.find("namespace ")
+
+        words = scopePrefix[sIndex:].split(" ")
+        if len(words) < 2:
+            return ""
+        name = words[1]
+        name = name.replace("{", "")
+        return name
+
+    def __build_childs(self, scopeContent: str):
         self.childs = []
-        if self.type == self.TYPE_STR_SKT_CLS_NAM:
-            self.__build_childs()
-
-    def __set_content(self, content):
-        if(content[0] == "{"):
-            content = content[1:]
-            lastChar = content[:len(content) - 1]
-            assert lastChar == "}"
-            content = content[0:lastChar]
-        self.content = content
-
-    def __set_properties(self, surScopes, prefix):
-        self.type = self.scope_name_from_prefix(prefix)
-        self.scopes = surScopes + self.scope_name_from_prefix(prefix)
-
-    def __build_childs(self):
-        if self.content == "":
+        if scopeContent == "" or self.is_leaf: # ignore method content
             return
 
         while True:
-            childContent = StrSection(self.content, "{", "}")
-            if not childContent.exists():
+            childStartIndex = scopeContent.find("{")
+            if childStartIndex < 0: 
                 return
+
+            childPos = self.get_child_content_position(scopeContent)
+            childStart = childPos[0]
+            childEnd = childPos[1]
+
+            childStr = scopeContent[childStart:childEnd + 1]
+            childPrefixStr = self.get_child_prefix(scopeContent, childStart)
+            fullStr = childPrefixStr + childStr
+
+            self.childs.append(HeaderScope(childPrefixStr, childStr))
+            scopeContent = scopeContent.replace(fullStr, "", 1) 
             
-            prefix = self.__get_child_prefix(childContent.get_position()[0])
+    def get_child_content_position(self, scopeContent : str):
+        curlyBraceCounter = 0
+        endIndex = -1
+        startIndex = scopeContent.find("{")
+        content = scopeContent[startIndex:]
 
-            self.childs.append(HeaderScope(childContent.get_content()))
-            self.content = childContent.input_without_section()
+        numOpen = content.count("{")  
+        numClose = content.count("}")
+        assert numOpen == numClose
 
-    def scope_name_from_prefix(self, prefix):
-        type = HeaderScope.scope_type_from_prefix(prefix)
-        if type == self.TYPE_STR_METHOD:
-            return ""
+        for i, char in enumerate(content):
+            if char == "{":
+                curlyBraceCounter += 1
+            if char == "}":
+                curlyBraceCounter += -1
+            if curlyBraceCounter == 0:
+                endIndex = i
+                return startIndex, startIndex + endIndex
+        
+        assert False
+        return 0, 0
 
-    def scope_type_from_prefix(self, prefix):
-        #if the prefix content is a method declaration, return "_method", else return the name
-        return self.TYPE_STR_METHOD
-        pass
-
-    def __get_child_prefix(self, childStartIndex):
-        tStr = self.content[0:childStartIndex]
-        sIndex = max([tStr.find("}"), tStr.find(";")])
+    def get_child_prefix(self, content : str, childStartIndex: int) -> str:
+        tStr = content[0:childStartIndex]
+        sIndex = max([tStr.find("}"), tStr.find(";")]) + 1
         assert sIndex > -1
         assert sIndex < childStartIndex
-        prefix = self.content[sIndex:childStartIndex]
-        print(prefix)
+        prefix = content[sIndex:childStartIndex]
+        # print(prefix)
         return prefix
 
     def get_cpp_string(self):
@@ -189,8 +269,8 @@ class HeaderScope:
 
         
 
-    def get_h_string():
-        pass
+    def get_h_string() -> str:
+        return ""
 
 #def get_scope_name(string):
 #    tempWords = string.rsplit(" ", 2)

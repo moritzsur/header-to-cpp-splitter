@@ -1,7 +1,6 @@
 from pathlib import Path
 import shutil
 import files
-import os
 
 # filesystem stuff
 #   checks if selected files already have a corresponding .cpp file
@@ -20,21 +19,11 @@ import os
 do_testing = True
 
 if do_testing:
-    copyPath = Path("D:/Programming/Python_Projects/cpp_from_h/files/testfiles")
-    assert(copyPath.exists())
-    
-    dir = copyPath.parent / "test"
-    if not dir.exists():
-        os.mkdir(dir)
-    for path in dir.glob("*.*"):
-        os.remove(path)
-
-    for path in copyPath.glob("*.h"):
-        shutil.copy(path, dir / path.name, follow_symlinks=True)
+    files.setup_testing()
 
 #change these to commandline args
 save_old_header = True
-srcPath = Path("D:/Programming/Python_Projects/cpp_from_h/files/test") 
+srcPath = Path("D:/Programming/Python_Projects/header-to-cpp-splitter/files/test") 
 
 assert(srcPath.exists())
 
