@@ -79,22 +79,14 @@ def process_raw_lines(hLines, cppLines):
     assert numCurlyOpen == numCurlyOpen
 
     docString = remove_comments(docString)
-    numCurlyOpen = docString.count("{")
-    numCurlyClose = docString.count("}")
     docString = remove_preprocessor_defs(docString)
-    numCurlyOpen = docString.count("{")
-    numCurlyClose = docString.count("}")
     
     # needs fix
     # docString = remove_string_content(docString)
 
     # optimizing file for analysis: replace tabs and newlines with space, remove multiple spaces in a row
     docString = replace_special_chars(docString)
-    numCurlyOpen = docString.count("{")
-    numCurlyClose = docString.count("}")
     docString = remove_multi_spaces(docString)
-    numCurlyOpen = docString.count("{")
-    numCurlyClose = docString.count("}")
 
     assert docString.count("{") == numCurlyOpen
     assert docString.count("}") == numCurlyClose
@@ -153,6 +145,8 @@ class HeaderScope:
         content      = self.remove_surrounding_curlys(content)
         self.is_leaf = self.__is_leaf_from_prefix(prefix) #is true when this scope should have no child scopes
         self.name    = self.__name_from_prefix(prefix) #the names that will be added to create the method in the cpp file - name1::name2::name3 { doStuff; }
+        self.fullPrefix = prefix
+        self.fullContent = content
         # print(f"scopename: {self.name}")
         
         self.__build_childs(content)
@@ -167,7 +161,10 @@ class HeaderScope:
         return strToUpdate
 
     def get_structure_str(self) -> str:
-        output = "\n" + self.name
+        output = "\n" 
+        if(self.is_leaf):
+            output += "LEAF "
+        output += self.name
         for child in self.childs:
             chStr = child.get_structure_str()
             chLines = chStr.splitlines(True)
@@ -228,8 +225,15 @@ class HeaderScope:
             childPrefixStr = self.get_child_prefix(scopeContent, childStart)
             fullStr = childPrefixStr + childStr
 
-            self.childs.append(HeaderScope(childPrefixStr, childStr))
             scopeContent = scopeContent.replace(fullStr, "", 1) 
+            
+            child = HeaderScope(childPrefixStr, childStr)
+            if child.is_leaf:
+                # tests for validating that a leaf should be added to composite structure
+                if childEnd + 1 < len(scopeContent) and scopeContent[childEnd + 1] == ";": # is enum or variable definition
+                    continue
+            
+            self.childs.append(child)
             
     def get_child_content_position(self, scopeContent : str):
         curlyBraceCounter = 0
@@ -253,17 +257,31 @@ class HeaderScope:
         assert False
         return 0, 0
 
+    def __clean_prefix(self, prefix: str) -> str:
+        if len(prefix) == 0:
+            return ""
+
+        while prefix[0] == ";" or prefix[0] == " ":
+            prefix = prefix[1:]
+
+        return prefix
+
     def get_child_prefix(self, content : str, childStartIndex: int) -> str:
         tStr = content[0:childStartIndex]
         sIndex = max([tStr.find("}"), tStr.find(";")]) + 1
         assert sIndex > -1
         assert sIndex < childStartIndex
         prefix = content[sIndex:childStartIndex]
-        # print(prefix)
+        prefix = self.__clean_prefix(prefix)
         return prefix
 
     def get_cpp_string(self):
         cppString = ""
+
+        if self.is_leaf:
+             if self.fullPrefix.find("enum") < 0:
+                return 
+
         for child in self.childs:
             cppString += child.get_cpp_string()
 
