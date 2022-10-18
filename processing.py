@@ -34,7 +34,7 @@ def process_raw_lines(hLines, cppLines):
     return ["", ""] #todo
 
 
-# uses composite pattern to 
+# uses composite pattern to represent the scopes in a header file
 class HeaderScope:
 
     #prefix is the text before the scope starts. Could contain struct, enum, method declaration etc.
@@ -96,51 +96,57 @@ class HeaderScope:
         if scopeContent == "" or self.is_leaf: # ignore method content
             return
 
+        contentLeft = scopeContent
         while True:
-            childStartIndex = scopeContent.find("{")
+            childStartIndex = contentLeft.find("{")
             if childStartIndex < 0: 
                 return
 
-            childPos = self.__get_child_content_position(scopeContent)
-            childStart = childPos[0]
-            childEnd = childPos[1]
-
-            childStr = scopeContent[childStart:childEnd + 1]
-            childPrefixStr = self.__get_child_prefix(scopeContent, childStart)
-            fullStr = childPrefixStr + childStr
-
-            scopeWithChild = scopeContent
-            scopeContent = scopeContent.replace(fullStr, "", 1) 
-            child = HeaderScope(childPrefixStr, childStr)
+            childBuilder = ScopeChildBuilder(contentLeft)
+            contentLeft = contentLeft.replace(childBuilder.full_str, "", 1) # remove before validation to avoid finding that scope again
             
-            if not self.__validate_child(child, childEnd, scopeWithChild):
+            if not childBuilder.created_valid():
                 continue
             
-            self.childs.append(child)
+            self.childs.append(childBuilder.scope)
 
-    # validates that a leaf should be added to composite structure
-    def __validate_child(self, childScope, childEndIndex: int, scopeStringWithChildStr: str) -> bool:
-        if not childScope.is_leaf:
+class ScopeChildBuilder:
+    def __init__(self, input : str, ):
+        self.__input = input
+
+        childPos = self.__get_content_position(input)
+        self.startPos = childPos[0]
+        self.endPos = childPos[1]
+        self.content = input[self.startPos:self.endPos + 1]
+        self.prefix = self.__get_prefix()
+
+        self.scope = HeaderScope(self.prefix, self.content)
+        self.full_str = self.prefix + self.content
+        
+    # validates that a leaf should be added to composite structure 
+    def created_valid(self) -> bool:
+        scope = self.scope
+        if not scope.is_leaf:
             return True
         
-        content = childScope.fullContent
+        content = scope.fullContent
         
         # ignore scopes that are smaller than one line
         if content.count(";") < 2:
             return False
 
         #ignore scopes that are leafs and end with ";" - enums or variables
-        if childEndIndex + 1 < len(scopeStringWithChildStr) and scopeStringWithChildStr[childEndIndex + 1] == ";":
+        if self.endPos + 1 < len(self.__input) and self.__input[self.endPos + 1] == ";":
             return False
 
         return True
-        
 
-    def __get_child_content_position(self, scopeContent : str):
+    #identifies scopes in a given string and returns it start and end pos
+    def __get_content_position(self, parentContent : str):
         curlyBraceCounter = 0
         endIndex = -1
-        startIndex = scopeContent.find("{")
-        content = scopeContent[startIndex:]
+        startIndex = parentContent.find("{")
+        content = parentContent[startIndex:]
 
         numOpen = content.count("{")  
         numClose = content.count("}")
@@ -158,8 +164,9 @@ class HeaderScope:
         assert False
         return 0, 0
 
-    def __get_child_prefix(self, content : str, childStartIndex: int) -> str:
-        tStr = content[0:childStartIndex]
+    # looks for the scope prefix with the scope position as a starting point
+    def __get_prefix(self) -> str:
+        tStr = self.__input[0:self.startPos]
         # todo: remove curlys in normal braces (fix constructor prefixes)
         # the indexes of content removed has to be remembered
         #indexesRemoved = self.__remove_brace_content(tStr)
@@ -168,8 +175,8 @@ class HeaderScope:
         # add to start index for every content removed before it 
         
         assert startIndex > -1
-        assert startIndex < childStartIndex
+        assert startIndex < self.startPos
         
-        prefix = content[startIndex:childStartIndex]
+        prefix = self.__input[startIndex:self.startPos]
         prefix = StringProcessing.remove_any_from_start(prefix, " ;")
         return prefix
