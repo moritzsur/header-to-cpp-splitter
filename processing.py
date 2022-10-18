@@ -25,7 +25,7 @@ def process_raw_lines(hLines, cppLines):
 
     assert docString.count("{") == numCurlyOpen
     assert docString.count("}") == numCurlyClose
-    mainScope = HeaderScope("", docString)
+    mainScope = Scope("", docString)
 
     print(mainScope.get_structure_str())
     quit()
@@ -35,7 +35,7 @@ def process_raw_lines(hLines, cppLines):
 
 
 # uses composite pattern to represent the scopes in a header file
-class HeaderScope:
+class Scope:
 
     #prefix is the text before the scope starts. Could contain struct, enum, method declaration etc.
     def __init__(self, prefix: str, content: str):
@@ -96,14 +96,14 @@ class HeaderScope:
         if scopeContent == "" or self.is_leaf: # ignore method content
             return
 
-        contentLeft = scopeContent
+        unprocessedContent = scopeContent
         while True:
-            childStartIndex = contentLeft.find("{")
+            childStartIndex = unprocessedContent.find("{")
             if childStartIndex < 0: 
                 return
 
-            childBuilder = ScopeChildBuilder(contentLeft)
-            contentLeft = contentLeft.replace(childBuilder.full_str, "", 1) # remove before validation to avoid finding that scope again
+            childBuilder = ScopeChildBuilder(unprocessedContent)
+            unprocessedContent = unprocessedContent.replace(childBuilder.full_str, "", 1) # remove before validation to avoid finding that scope again
             
             if not childBuilder.created_valid():
                 continue
@@ -120,16 +120,15 @@ class ScopeChildBuilder:
         self.content = input[self.startPos:self.endPos + 1]
         self.prefix = self.__get_prefix()
 
-        self.scope = HeaderScope(self.prefix, self.content)
+        self.scope = Scope (self.prefix, self.content)
         self.full_str = self.prefix + self.content
         
     # validates that a leaf should be added to composite structure 
     def created_valid(self) -> bool:
-        scope = self.scope
-        if not scope.is_leaf:
+        if not self.scope.is_leaf:
             return True
         
-        content = scope.fullContent
+        content = self.scope.fullContent
         
         # ignore scopes that are smaller than one line
         if content.count(";") < 2:
@@ -138,6 +137,8 @@ class ScopeChildBuilder:
         #ignore scopes that are leafs and end with ";" - enums or variables
         if self.endPos + 1 < len(self.__input) and self.__input[self.endPos + 1] == ";":
             return False
+
+        # todo add test for templates, since template are no scopes that should be cared about
 
         return True
 
@@ -167,9 +168,8 @@ class ScopeChildBuilder:
     # looks for the scope prefix with the scope position as a starting point
     def __get_prefix(self) -> str:
         tStr = self.__input[0:self.startPos]
-        # todo: remove curlys in normal braces (fix constructor prefixes)
-        # the indexes of content removed has to be remembered
-        #indexesRemoved = self.__remove_brace_content(tStr)
+
+        indexesRemoved = StringProcessing.remove_brace_content(tStr) #test this (fixes constructors)
 
         startIndex = max(max([tStr.find("}"), tStr.find(";")]), 0)
         # add to start index for every content removed before it 
