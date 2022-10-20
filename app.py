@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 import files
+import StringProcessing
 
 # filesystem stuff
 #   checks if selected files already have a corresponding .cpp file

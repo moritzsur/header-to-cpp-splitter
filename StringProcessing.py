@@ -117,6 +117,29 @@ def is_leaf_scope_from_prefix(prefix: str) -> bool:
         return False
     return True
 
+def replace_brace_content(stringToClear : str, replaceStr = "", braceStartChar = "(", braceEndChar = ")") -> str:
+    currentIsBraceContent = False
+    numBraces = 0 
+    newStr = ""
+
+    for char in stringToClear:
+
+        if char == braceEndChar:
+            numBraces += -1
+            if numBraces == 0:
+                currentIsBraceContent = False
+
+        if currentIsBraceContent:
+            newStr += replaceStr
+        else:
+            newStr += char
+
+        if char == braceStartChar:
+            currentIsBraceContent = True
+            numBraces += 1
+        
+    return newStr
+
 # returns the indexes of the content removed
 # like removing a string string section, but remove_brace_content("test(foo())", "(", ")") returns test()
 def remove_brace_content(stringToClear : str, braceStartChar = "(", braceEndChar = ")") -> str:
@@ -138,6 +161,15 @@ def remove_brace_content(stringToClear : str, braceStartChar = "(", braceEndChar
         
     return newStr
 
+# def find_excluding_brace_content(strToSearch: str, braceStartChar = "(", braceEndCar = ")") -> int:
+#     noBraceStr = remove_brace_content(strToSearch)
+#     wasReplaced = []
+    
+#     for char in strToSearch:
+#         noBraceStr.
+
+#     return newStr    
+
 def remove_surrounding_curlys(strToUpdate: str) -> str:
     if(len(strToUpdate) < 1):
         return ""
@@ -146,3 +178,25 @@ def remove_surrounding_curlys(strToUpdate: str) -> str:
         return strToUpdate[1:-1]
 
     return strToUpdate
+
+
+class Tests:
+    @staticmethod
+    def test_brace_replacement():
+        inputs  = [
+            "juce::Button({})", 
+            "float getStrokeThickness(bool ThicknessWhenOver) { return ThicknessWhenOver ? strokeThicknessOver : strokeThicknessNormal; }",
+            "g.drawFittedText(getButtonText(), getLocalBounds(), juce::Justification::centred, 2);",
+            "NestedTest()()()((()))((()())())"]
+        results = [
+            "juce::Button(  )", 
+            "float getStrokeThickness(                      ) { return ThicknessWhenOver ? strokeThicknessOver : strokeThicknessNormal; }",
+            "g.drawFittedText(                                                                  );",
+            "NestedTest()()()(    )(        )"]        
+
+        for i, input in enumerate(inputs):
+            replaced = replace_brace_content(input, " ")
+            assert replaced == results[i]
+
+
+Tests.test_brace_replacement()                

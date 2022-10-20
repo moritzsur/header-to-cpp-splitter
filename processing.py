@@ -97,14 +97,15 @@ class Scope:
         self.childs = []
         if scopeContent == "" or self.is_leaf: # ignore method content
             return
-
+            
         unprocessedContent = scopeContent
         while True:
-            childStartIndex = unprocessedContent.find("{")
-            if childStartIndex < 0: 
-                return
+            
+            if not ScopeChildBuilder.finds_child(unprocessedContent):
+                break
 
             childBuilder = ScopeChildBuilder(unprocessedContent)
+            
             unprocessedContent = unprocessedContent.replace(childBuilder.full_str, "", 1) # remove before validation to avoid finding that scope again
             
             if not childBuilder.created_valid():
@@ -151,7 +152,8 @@ class ScopeChildBuilder:
     def __get_content_position(self, parentContent : str):
         curlyBraceCounter = 0
         endIndex = -1
-        startIndex = parentContent.find("{")
+        contentToSeach = StringProcessing.replace_brace_content(parentContent, " ")
+        startIndex = contentToSeach.find("{")
         content = parentContent[startIndex:]
 
         numOpen = content.count("{")  
@@ -173,15 +175,26 @@ class ScopeChildBuilder:
     # looks for the scope prefix with the scope position as a starting point
     def __get_prefix(self) -> str:
         tStr = self.__input[0:self.startPos]
+        if tStr.find("static constexpr float LINEWIDTH = 1.5f; ButtonNoOutline() : juce::Button({})") > -1:
+            tStr.count("test")
 
-        # indexesRemoved = StringProcessing.remove_brace_content(tStr) #test this (fixes constructors)
+        tStr = StringProcessing.replace_brace_content(tStr, " ") #test this (fixes constructors)
 
-        startIndex = max(max(tStr.find("}"), tStr.find(";")), 0)
+        startIndex = max(max(tStr.rfind("}"), tStr.rfind(";")), 0)
         # add to start index for every content removed before it 
         
-        assert startIndex > -1
         assert startIndex < self.startPos
         
         prefix = self.__input[startIndex:self.startPos]
         prefix = StringProcessing.remove_any_from_start(prefix, " ;")
         return prefix
+
+    @staticmethod
+    def finds_child(strToSearch: str) -> bool:
+        strToSearch = StringProcessing.replace_brace_content(strToSearch)
+
+        if strToSearch.find("{") > -1:
+            return True
+        
+        return False
+
