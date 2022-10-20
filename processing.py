@@ -75,6 +75,8 @@ class Scope:
 
     def __name_from_prefix(self, scopePrefix: str) -> str:
         if StringProcessing.is_leaf_scope_from_prefix(scopePrefix):
+            scopePrefix = StringProcessing.remove_access_specifiers(scopePrefix)
+            scopePrefix = StringProcessing.remove_any_from_start(scopePrefix, " ")
             return scopePrefix
         
         #if this is a class struct or namespace, this should return the corresponding name
@@ -88,7 +90,7 @@ class Scope:
         if len(words) < 2:
             return ""
         name = words[1]
-        name = name.replace("{", "")
+        name = StringProcessing.to_alpha(name)
         return name
 
     def __build_childs(self, scopeContent: str):
@@ -110,8 +112,9 @@ class Scope:
             
             self.childs.append(childBuilder.scope)
 
+#creates first Scope from the input string
 class ScopeChildBuilder:
-    def __init__(self, input : str, ):
+    def __init__(self, input : str):
         self.__input = input
 
         childPos = self.__get_content_position(input)
@@ -139,6 +142,8 @@ class ScopeChildBuilder:
             return False
 
         # todo add test for templates, since template are no scopes that should be cared about
+        if self.prefix.find("template") > -1:
+            return False
 
         return True
 
@@ -169,9 +174,12 @@ class ScopeChildBuilder:
     def __get_prefix(self) -> str:
         tStr = self.__input[0:self.startPos]
 
+        if tStr.find("juce::Button({})") > -1:
+            test = ""
+
         indexesRemoved = StringProcessing.remove_brace_content(tStr) #test this (fixes constructors)
 
-        startIndex = max(max([tStr.find("}"), tStr.find(";")]), 0)
+        startIndex = max(max(indexesRemoved.find("}"), indexesRemoved.find(";")), 0)
         # add to start index for every content removed before it 
         
         assert startIndex > -1

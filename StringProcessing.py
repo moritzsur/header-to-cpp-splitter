@@ -3,10 +3,27 @@
 
 # file cleanup before processing
 
+def to_alpha(input: str) -> str:
+    if input.isalpha():
+        return input
+
+    output = ""
+    alphabet = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz"
+    for char in input:
+        if alphabet.find(char) > -1:
+            output += char
+    return output
+
 def remove_multi_spaces(string):
     while string.find("  ") > -1:
         string = string.replace("  ", " ")
     return string
+
+def remove_access_specifiers(input: str) -> str:
+    keys = ("public:", "protected:", "private:")
+    for key in keys:
+        input = input.replace(key, "")
+    return input
 
 def remove_sections(string, startChars, endChars, endCharsToLeave = 0):
 
@@ -102,7 +119,7 @@ def is_leaf_scope_from_prefix(prefix: str) -> bool:
 
 # returns the indexes of the content removed
 # like removing a string string section, but remove_brace_content("test(foo())", "(", ")") returns test()
-def remove_brace_content(self, stringToClear : str, braceStartChar = "(", braceEndChar = ")") -> str:
+def remove_brace_content(stringToClear : str, braceStartChar = "(", braceEndChar = ")") -> str:
     currentCharIsBraceContent = False
     numBraces = 0 
     newStr = ""
