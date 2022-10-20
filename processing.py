@@ -174,12 +174,9 @@ class ScopeChildBuilder:
     def __get_prefix(self) -> str:
         tStr = self.__input[0:self.startPos]
 
-        if tStr.find("juce::Button({})") > -1:
-            test = ""
+        # indexesRemoved = StringProcessing.remove_brace_content(tStr) #test this (fixes constructors)
 
-        indexesRemoved = StringProcessing.remove_brace_content(tStr) #test this (fixes constructors)
-
-        startIndex = max(max(indexesRemoved.find("}"), indexesRemoved.find(";")), 0)
+        startIndex = max(max(tStr.find("}"), tStr.find(";")), 0)
         # add to start index for every content removed before it 
         
         assert startIndex > -1
